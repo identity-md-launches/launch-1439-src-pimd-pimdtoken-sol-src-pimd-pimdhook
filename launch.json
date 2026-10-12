@@ -1,0 +1,34 @@
+{
+  "kind": "univ4_hook",
+  "hook": {
+    "contract": "PimdHook",
+    "constructorArgs": [
+      "$poolManager",
+      "$token",
+      "$factory"
+    ],
+    "permissions": [
+      "beforeInitialize",
+      "afterInitialize",
+      "beforeAddLiquidity",
+      "beforeRemoveLiquidity",
+      "beforeSwap",
+      "afterSwap",
+      "beforeSwapReturnDelta",
+      "afterSwapReturnDelta"
+    ]
+  },
+  "token": {
+    "contract": "PimdToken",
+    "name": "Ponzinomics",
+    "symbol": "PIMD",
+    "decimals": 18
+  },
+  "pool": {
+    "pairedCurrency": "0x5f7bb59365ce557c26dbcaa4ee9d39a4b95b7127",
+    "fee": 12500,
+    "tickSpacing": 60,
+    "initialPrice": "79228162514264337593543950336"
+  },
+  "notes": "PimdToken: fixed 1e27 supply minted once to the deployer, no owner/mint/burn/pause; burning is a transfer to 0xdEaD. PimdHook(pm, token, factory): taxes every trade in IMD, 2.4% buys / 5.6% sells, split 75% holders (pushed to the pre-deployed PimdEngine 0xffdb5dd341f692a29b5a0d3d1577df683c1baca4, a source constant, not deployed here) / 25% team, held as ERC-6909 IMD claims; the pool's 12500 LP fee is untouched. No owner. Audit of code as imported (findings, not fixed): (1) Currency order: beforeInitialize accepts token/IMD either way round, records imdIsCurrency0, and _isBuy/_imdIsSpecified/_imdAmount route every direction and IMD amount; truth tables check out for all four swap kinds. It refuses a second pool, a sender other than $factory, any other pairing and fees outside {500,3000,10000,12500} (dynamic flag included); 12500 is accepted. It does not gate the opening price; tick is only emitted in Launched. tickSpacing is not checked (informational). (2) Liquidity: beforeAddLiquidity admits only sender==$factory, once (seeded flag), then refuses all adds; beforeRemoveLiquidity refuses every negative delta forever and allows the zero-delta fee collection. ASSUMPTION: sender is msg.sender of PoolManager.modifyLiquidity, so the factory must call modifyLiquidity itself (as RehearsalSeeder does); if it seeds through PositionManager or a router the seed reverts. (3) Engine: register/prune/fire/tally/pay all call _requireLocked, which exttloads V4's IS_UNLOCKED_SLOT (0xc090fc46..., matches v4-core), so holder weights are never read while the PoolManager is unlocked. On-chain read: the engine has code, bound()=false, dripBpsPerPeriod=150, minInterval=900 (production values); runtime bytecode was not compared to source. The binder must call bind(token, hook, [distributor]) after launch or drips never flow. Other notes: exact-IMD swaps that fill partially (price limit or range end) revert with PartialFill by design; the launch buy cap (25 IMD per tx.origin, 600s/6000 L2 blocks, 1h max) can be got round with several EOAs; LAUNCH_TICK 129000 assumes PIMD is currency1 and is informational only. Stale comments: the hook @dev says fees assume IMD is currency0 and getHookPermissions says beforeInitialize checks the price; DeployPimd says the hook takes only pm and token. None of these are true of the code. forge build and 94 forge tests pass."
+}
